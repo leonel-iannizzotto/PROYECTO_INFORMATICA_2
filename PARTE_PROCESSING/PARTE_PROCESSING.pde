@@ -16,8 +16,13 @@ int posY = 5;
 // DIMENSIONES DE CADA CUADRADO
 int tam = 4;
 int vida;
+//cuadrado
+int limiteX =350;
+int limiteY =150;
+
+
 void setup(){
-size(800,600);
+size(1000,600);
 gatito = loadImage("gatitoterminado.png");
 noCursor();
      x = 0;
@@ -28,10 +33,10 @@ vida=10;
 
 void draw(){
 background(0);
- // COLOR
-  fill(255, 0, 0);
-
-  // RECORRER MATRIZ
+ 
+ //dibujar corazones
+  fill(255, 0, 0); 
+  stroke(255,0,0);
   for(int i=0;i<vida;i++){
   for (int fila = 0; fila < figura.length; fila++) {
     for (int columna = 0; columna < figura[fila].length; columna++) {
@@ -46,21 +51,9 @@ background(0);
     }
   }
   }
-image(gatito, mouseX-50, mouseY-50,100,100);
-stroke(220,0,0);
-fill(220,0,0);
-// rect(mouseX-25/1.5 ,mouseY-5/1.5    ,50/1.5    ,10/1.5);
-// rect(mouseX-20/1.5 ,mouseY+5/1.5    ,40/1.5    ,5/1.5);
-// rect(mouseX-15/1.5 ,mouseY+10/1.5   ,30/1.5    ,5/1.5);
-// rect(mouseX-10/1.5 ,mouseY+15/1.5   ,20/1.5    ,5/1.5);
-// rect(mouseX-5/1.5  ,mouseY+20/1.5   ,10/1.5    ,5/1.5);
-// rect(mouseX-20/1.5 ,mouseY-10/1.5   ,15/1.5    ,5/1.5);
-// rect(mouseX+5/1.5  ,mouseY-10/1.5   ,15/1.5    ,5/1.5);
-
-// stroke(250,0,0); //brillito
-//fill(250,0,0);
-// rect(mouseX+10/1.5 ,mouseY-5/1.5    ,10/1.5    ,5/1.5);
-// rect(mouseX+15/1.5 ,mouseY          ,5/1.5     ,5/1.5);
+  //dibujar gatito
+image(gatito, mouseX-50, mouseY-50,60,60); // el gato es de 60x60
+//naranjas que persiguen al gato
 if (activo == false) {
 nuevoProyectil();
   activo = true;
@@ -73,26 +66,27 @@ nuevoProyectil();
   // Normalizar dirección
   float distancia = dist(x, y, mouseX, mouseY);
 
-  if (distancia > 0) {
+  if (distancia > 0) { //si existe distancia
     dx = dx / distancia;
     dy = dy / distancia;
   }
-
   // Mover proyectil
-  x = x + dx * velocidad;
+  x = x + dx * velocidad; //posicion actual mas direccion por velocidad
   y = y + dy * velocidad;
 
   // Dibujar proyectil
-  if(distancia>20){
+  if(distancia>20){ //si la distancia es muy pequeña
   fill(255, 80, 0);
   noStroke();
   ellipse(x, y, 20, 20);
-  }else{
-  activo=false;
+  }else{ 
+  activo=false; 
   vida=vida-1;
-  }
-  
+  } 
  }
+   noFill(); // dibujar cuadrado blanco
+  stroke(255);
+  rect(limiteX, limiteY, 300, 300);
 }
 
  void nuevoProyectil() {
