@@ -15,6 +15,7 @@ int movY = 0;
 
 // Estela del Dash
 float anteriorX, anteriorY;
+int anteriorDireccion = 1; // hacia dónde miraba el gato cuando hizo el dash
 int transparencia = 0;
 
 // Proyectil (Naranjas)
@@ -46,6 +47,10 @@ class Jugador {
   float velocidad = 4;
   int direccionMirada = 1; // 1 para un lado, -1 para voltear la imagen
 
+  // Animación de caminata
+  float animFase = 0;       // acumula el "tiempo" de la caminata
+  float animIntensidad = 0; // 0 = quieto, 1 = caminando a pleno
+
   void mover(float mx, float my) {
     x += mx * velocidad;
     y += my * velocidad;
@@ -55,10 +60,29 @@ class Jugador {
     y = constrain(y, 30, height - 30);
   }
 
+  // Se llama una vez por frame, indicando si el jugador se está moviendo
+  void animar(boolean caminando) {
+    // Intensidad suave: sube al caminar, baja al frenar
+    float objetivo = caminando ? 1 : 0;
+    animIntensidad = lerp(animIntensidad, objetivo, 0.15);
+
+    // La fase avanza solo si se mueve
+    if (caminando) {
+      animFase += 0.25;
+    }
+  }
+
   void mostrar() {
+    // Cálculo de los efectos
+    float rebote   = abs(sin(animFase)) * 6 * animIntensidad;       // salto en píxeles
+    float balanceo = sin(animFase) * 0.12 * animIntensidad;         // rotación en radianes
+    float escalaX  = 1 + sin(animFase * 2) * 0.06 * animIntensidad; // squash & stretch
+    float escalaY  = 1 - sin(animFase * 2) * 0.06 * animIntensidad;
+
     pushMatrix();
-    translate(x, y);
-    scale(direccionMirada, 1); // Voltea la imagen automáticamente según la dirección
+    translate(x, y - rebote);
+    rotate(balanceo);
+    scale(direccionMirada * escalaX, escalaY); // volteo y squash en un solo scale
     imageMode(CENTER);
     image(gatito, 0, 0, 60, 60);
     imageMode(CORNER);
@@ -135,6 +159,7 @@ void draw() {
   if (dash && tiempo - tiempoanterior >= 1000) {
     anteriorX = gato.x;
     anteriorY = gato.y;
+    anteriorDireccion = gato.direccionMirada;
 
     gato.mover(movX * 15, movY * 15);
 
@@ -148,7 +173,7 @@ void draw() {
   if (transparencia > 0) {
     pushMatrix();
     translate(anteriorX, anteriorY);
-    scale(gato.direccionMirada, 1);
+    scale(anteriorDireccion, 1);
     tint(255, transparencia);
     imageMode(CENTER);
     image(gatito, 0, 0, 60, 60);
@@ -159,7 +184,8 @@ void draw() {
     transparencia -= 3;
   }
 
-  // --- DIBUJAR AL GATO ---
+  // --- DIBUJAR AL GATO (con animación de saltitos) ---
+  gato.animar(movX != 0 || movY != 0); // true si hay alguna flecha presionada
   gato.mostrar();
 
   // --- NARANJAS QUE PERSIGUEN AL GATO ---
