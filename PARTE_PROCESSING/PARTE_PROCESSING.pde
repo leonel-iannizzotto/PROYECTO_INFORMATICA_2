@@ -2,7 +2,7 @@ float x, y;
 float velocidad = 5;
 float dx, dy;
 boolean activo=true;
-PImage gatito;
+PImage gatito, rayos;
 int[][] figura = {
   {0, 1, 0, 1, 0},
   {1, 1, 1, 1, 1},
@@ -24,6 +24,8 @@ int limiteY =150;
 void setup(){
 size(1000,600);
 gatito = loadImage("gatitoterminado.png");
+rayos = loadImage("rayos.png");
+rayos.resize(1000, 600); // ================ HACER LO MISMO PARA CADA FOTO ==========
 noCursor();
      x = 0;
      y = height / 2;
@@ -33,24 +35,52 @@ vida=10;
 
 void draw(){
 background(0);
- 
- //dibujar corazones
-  fill(255, 0, 0); 
-  stroke(255,0,0);
-  for(int i=0;i<vida;i++){
-  for (int fila = 0; fila < figura.length; fila++) {
-    for (int columna = 0; columna < figura[fila].length; columna++) {
+// --- RAYOS ----
+if (vida<=3){
+  // --- EFECTO DE PULSO / TITILEO EN LOS RAYOS ---
+  // map convierte el valor de sin() (que va de -1 a 1) a una opacidad entre 100 y 255
+  float opacidadRayos = map(sin(frameCount * 0.15), -1, 1, 100, 255);
+  tint(255, opacidadRayos); // Aplica transparencia variable
+  
+  image(rayos, 1, 1);
+  
+  noTint(); // ¡Importante! Desactivar el tint para que el gatito y los corazones no se vuelvan transparentes
+}
 
-      if (figura[fila][columna] == 1) {
+// --- DIBUJAR CORAZONES CON EFECTO DE LATIDO ---
+  fill(255, 0, 0);  
+  stroke(255, 0, 0);
+  
+  for(int i = 0; i < vida; i++) {
+    
+    // 1. Calcular la velocidad del latido según la vida restante
+    // (A menor vida, más rápido palpita: multiplicamos por (11 - vida))
+    float velocidadLatido = 0.025 * (11 - vida); 
+    
+    // 2. Generar el factor de escala usando sin()
+    // sin() devuelve valores entre -1 y 1. Lo usamos para variar el tamaño.
+    float latido = sin(frameCount * velocidadLatido) * 0.2; // 0.3 controla qué tan fuerte es el brinco
+    
+    // Escala final (1.0 es el tamaño normal, sumamos el latido)
+    float escalaActual = 1.0 + latido; 
 
-        float x = posX*5*i + columna * tam;
-        float y = posY + fila * tam;
+    for (int fila = 0; fila < figura.length; fila++) {
+      for (int columna = 0; columna < figura[fila].length; columna++) {
 
-        rect(x, y, tam, tam);
+        if (figura[fila][columna] == 1) {
+          // Aplicamos la escala al tamaño 'tam' y a la posición relativa
+          float tamDinamico = tam * escalaActual;
+          
+          // Posición base del corazón actual separada por 'i'
+          float xCorazon = posX * 5 * i + (columna * tam * escalaActual);
+          float yCorazon = posY + (fila * tam * escalaActual);
+
+          rect(xCorazon, yCorazon, tamDinamico, tamDinamico);
+        }
       }
     }
   }
-  }
+ 
   //dibujar gatito
 image(gatito, mouseX-50, mouseY-50,60,60); // el gato es de 60x60
 //naranjas que persiguen al gato
