@@ -187,152 +187,23 @@ void draw()
     return;
   }
 
+  // -------- JUEGO --------
   background(0);
   tiempo = millis();
 
-  // ------- RAYOS  ---------
-  if (jugador.vida <= 3) 
-  {
-    float opacidadRayos = map(sin(frameCount * 0.20), -1, 1, 100, 255); // frameCount sirve de angulo para sen() // al variar entre -1 y 1 oscila entre 100 y 255 de opacidad // 0.20 es la velocidad
-    tint(255, opacidadRayos); // indica como se dibujan las imagenes hasta noTint
-      image(rayos, 1, 1);
-    noTint();
-  }
-
-  // --- CORAZONES CON EFECTO DE LATIDO ---
-  fill(255, 0, 0); // color rojo
-  stroke(255, 0, 0); // bordes rojos
-
-  for (int i = 0; i < jugador.vida; i++) 
-  {
-    float velocidadLatido = 0.025 * (11 - jugador.vida); // mientras menos vida, mas rapido
-    float latido = sin(frameCount * velocidadLatido) * 0.2; // usa velocidadLatido como angulo
-    float escalaActual = 1.0 + latido; // escala variable de los corazones
-    
-    // dibujo de cada corazon
-    for (int fila = 0; fila < figura.length; fila++) 
-    {
-      for (int columna = 0; columna < figura[fila].length; columna++) 
-      {
-        if (figura[fila][columna] == 1) 
-        {
-          float tamDinamico = tam * escalaActual; // modifica tamaño constantemente
-          float xCorazon = posX * 5 * i + (columna * (tam * escalaActual)); // separa cada 25 pixeles y le da la posicion a cada cuadradito en columna
-          float yCorazon = posY + (fila * (tam * escalaActual)); // la posicion en y no varía con i
-
-          rect(xCorazon, yCorazon, tamDinamico, tamDinamico); // dibuja cada pixel del corazon
-        }
-      }
-    }
-  }
-
-  // ------ CALCULAR DIRECCIÓN DEL TECLADO ------
-  movX = 0;
-  if (derecha) 
-  {
-    movX++;
-    jugador.direccionMirada = -1;
-  }
-  if (izquierda) 
-  {
-    movX--;
-    jugador.direccionMirada = 1;
-  }
-
-  movY = 0;
-  if (abajo) movY++;
-  if (arriba) movY--;
-
-  // ------ MECÁNICA DE DASH ------
-  if (dash && tiempo - tiempoanterior >= esperaDash) // con delay de 1 segundo
-  {
-    // guarda la posicion y direccion de cuando se hizo
-    anteriorX = jugador.x;
-    anteriorY = jugador.y;
-    anteriorDireccion = jugador.direccionMirada;
-
-    jugador.mover(movX * 15, movY * 15); // ejecuta el dash (hace que se mueva muy rapido)
-
-    transparencia = 150; // inicial 
-    tiempoanterior = tiempo; // nuevo tiempo para comparar
-  } 
-  else 
-  {
-    jugador.mover(movX, movY);
-  }
-
-  // ----- DIBUJAR ESTELA DEL DASH -----
-  if (transparencia > 0) 
-  {
-    pushMatrix(); // solo modifica la estela hasta popMatrix()
-      translate(anteriorX, anteriorY); // posiciona el centro en las coordenadas anteriores
-      scale(anteriorDireccion, 1); // lo escala dependiendo la direccion que tenia
-        tint(255, transparencia); // se desvanece de a poco
-          imageMode(CENTER);
-          image(personaje, 0, 0, 60, 60); // imprime la estela
-          imageMode(CORNER);
-        noTint();
-    popMatrix();
-
-    transparencia = transparencia - 3;
-  }
+  dibujarRayos();
+  dibujarCorazones();
+  calcularDireccion();
+  moverJugador();
+  dibujarEstelaDash();
 
   // ---- DIBUJAR AL GATO CON ANIMACIONES ----
   jugador.animar(movX != 0 || movY != 0); // true si hay alguna flecha presionada
   jugador.mostrar();
 
-  // ----- NARANJAS QUE PERSIGUEN AL GATO -----
-  if (activo == false) 
-  {
-    nuevoProyectil();
-    activo = true;
-  }
-
-  // ----- PERSIGUEN AL JUGADOR -----
-  if (activo) 
-  {
-    dx = jugador.x - xProyectil;
-    dy = jugador.y - yProyectil;
-    
-    float distancia = dist(xProyectil, yProyectil, jugador.x, jugador.y);
-
-    // normaliza el vector (dx,dy) para obtener solo la direccion hacia el jugador
-    if (distancia > 0) 
-    {
-      dx = dx / distancia;
-      dy = dy / distancia;
-    }
-
-    // mover proyectil
-    xProyectil = xProyectil + dx * velocidadProyectil;
-    yProyectil = yProyectil + dy * velocidadProyectil;
-
-    // Dibujar proyectil o colisión
-    if (distancia > 20) 
-    {
-      fill(255, 80, 0);
-      noStroke(); // sin bordes
-      ellipse(xProyectil, yProyectil, 20, 20);
-    } else {
-      activo = false; // llegó al jugador
-      jugador.vida = jugador.vida - 1; // quita una vida
-    }
-  }
-
-  // -------- CUADRADO BLANCO --------
-  noFill(); // sin pintar el interior
-  stroke(255); // bordes blancos
-  rect(limiteX, limiteY, 300, 300); 
-  
-  // -------- BARRA DE DASH (solo aparece mientras se carga) --------
-  float cargado = tiempo - tiempoanterior; // ms desde el último dash
-  if (cargado < esperaDash)
-  {
-    float anchoBarra = map(cargado, 0, esperaDash, 150, 0); // crece de 0 a 300 píxeles
-    stroke(0);
-    fill(26, 82, 140); // color azulado
-    rect(425, 465, anchoBarra, 5);
-  }
+  actualizarNaranja();  // generar, perseguir y detectar colisión
+  dibujarCuadroBlanco();
+  dibujarBarraDash();
 }
 
 // =================================================================== FUNCIONES ==================================================================================
@@ -518,6 +389,148 @@ void comenzarJuego()
 }
 
 // ================= FUNCIONES DENTRO DEL JUEGO =================
+// ------- RAYOS  ---------
+void dibujarRayos() 
+{
+  if (jugador.vida <= 3) 
+  {
+    float opacidadRayos = map(sin(frameCount * 0.20), -1, 1, 100, 255); // frameCount sirve de angulo para sen() // al variar entre -1 y 1 oscila entre 100 y 255 de opacidad // 0.20 es la velocidad
+    tint(255, opacidadRayos); // indica como se dibujan las imagenes hasta noTint
+      image(rayos, 1, 1);
+    noTint();
+  }
+}
+
+// --- CORAZONES CON EFECTO DE LATIDO ---
+void dibujarCorazones() 
+{
+  fill(255, 0, 0); // color rojo
+  stroke(255, 0, 0); // bordes rojos
+
+  for (int i = 0; i < jugador.vida; i++) 
+  {
+    float velocidadLatido = 0.025 * (11 - jugador.vida); // mientras menos vida, mas rapido
+    float latido = sin(frameCount * velocidadLatido) * 0.2; // usa velocidadLatido como angulo
+    float escalaActual = 1.0 + latido; // escala variable de los corazones
+    
+    // dibujo de cada corazon
+    for (int fila = 0; fila < figura.length; fila++) 
+    {
+      for (int columna = 0; columna < figura[fila].length; columna++) 
+      {
+        if (figura[fila][columna] == 1) 
+        {
+          float tamDinamico = tam * escalaActual; // modifica tamaño constantemente
+          float xCorazon = posX * 5 * i + (columna * (tam * escalaActual)); // separa cada 25 pixeles y le da la posicion a cada cuadradito en columna
+          float yCorazon = posY + (fila * (tam * escalaActual)); // la posicion en y no varía con i
+
+          rect(xCorazon, yCorazon, tamDinamico, tamDinamico); // dibuja cada pixel del corazon
+        }
+      }
+    }
+  }
+}
+
+// ------ CALCULAR DIRECCIÓN DEL TECLADO ------
+void calcularDireccion() 
+{
+  movX = 0;
+  if (derecha) 
+  {
+    movX++;
+    jugador.direccionMirada = -1;
+  }
+  if (izquierda) 
+  {
+    movX--;
+    jugador.direccionMirada = 1;
+  }
+
+  movY = 0;
+  if (abajo) movY++;
+  if (arriba) movY--;
+}
+
+// ------ MOVER AL JUGADOR (con mecánica de dash) ------
+void moverJugador() 
+{
+  if (dash && tiempo - tiempoanterior >= esperaDash) // con delay de 1 segundo
+  {
+    // guarda la posicion y direccion de cuando se hizo
+    anteriorX = jugador.x;
+    anteriorY = jugador.y;
+    anteriorDireccion = jugador.direccionMirada;
+
+    jugador.mover(movX * 15, movY * 15); // ejecuta el dash (hace que se mueva muy rapido)
+
+    transparencia = 150; // inicial 
+    tiempoanterior = tiempo; // nuevo tiempo para comparar
+  } 
+  else 
+  {
+    jugador.mover(movX, movY);
+  }
+}
+
+// ----- DIBUJAR ESTELA DEL DASH -----
+void dibujarEstelaDash() 
+{
+  if (transparencia > 0) 
+  {
+    pushMatrix(); // solo modifica la estela hasta popMatrix()
+      translate(anteriorX, anteriorY); // posiciona el centro en las coordenadas anteriores
+      scale(anteriorDireccion, 1); // lo escala dependiendo la direccion que tenia
+        tint(255, transparencia); // se desvanece de a poco
+          imageMode(CENTER);
+          image(personaje, 0, 0, 60, 60); // imprime la estela
+          imageMode(CORNER);
+        noTint();
+    popMatrix();
+
+    transparencia = transparencia - 3;
+  }
+}
+
+// ----- NARANJAS QUE PERSIGUEN AL JUGADOR -----
+void actualizarNaranja() 
+{
+  if (activo == false) 
+  {
+    nuevoProyectil();
+    activo = true;
+  }
+
+  if (activo) 
+  {
+    dx = jugador.x - xProyectil;
+    dy = jugador.y - yProyectil;
+    
+    float distancia = dist(xProyectil, yProyectil, jugador.x, jugador.y);
+
+    // normaliza el vector (dx,dy) para obtener solo la direccion hacia el jugador
+    if (distancia > 0) 
+    {
+      dx = dx / distancia;
+      dy = dy / distancia;
+    }
+
+    // mover proyectil
+    xProyectil = xProyectil + dx * velocidadProyectil;
+    yProyectil = yProyectil + dy * velocidadProyectil;
+
+    // Dibujar proyectil o colisión
+    if (distancia > 20) 
+    {
+      fill(255, 80, 0);
+      noStroke(); // sin bordes
+      ellipse(xProyectil, yProyectil, 20, 20);
+    } else {
+      activo = false; // llegó al jugador
+      jugador.vida = jugador.vida - 1; // quita una vida
+    }
+  }
+}
+
 // --------- GENERADOR DE NARANJAS ---------
 void nuevoProyectil() 
 {
@@ -538,6 +551,28 @@ void nuevoProyectil()
   }
 }
 
+// -------- CUADRADO BLANCO --------
+void dibujarCuadroBlanco() 
+{
+  noFill(); // sin pintar el interior
+  stroke(255); // bordes blancos
+  rect(limiteX, limiteY, 300, 300); 
+}
+
+// -------- BARRA DE DASH (solo aparece mientras se carga) --------
+void dibujarBarraDash() 
+{
+  float cargado = tiempo - tiempoanterior; // ms desde el último dash
+  if (cargado < esperaDash)
+  {
+    float anchoBarra = map(cargado, 0, esperaDash, 150, 0); // se achica de 150 a 0 píxeles
+    stroke(0);
+    fill(26, 82, 140); // color azulado
+    rect(425, 465, anchoBarra, 5);
+  }
+}
+
+// ================= TECLADO =================
 // -------- KEY PRESSED ----------
 void keyPressed() 
 {
