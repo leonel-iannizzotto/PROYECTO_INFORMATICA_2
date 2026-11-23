@@ -1,3 +1,4 @@
+// =============================================================== VARIABLES ======================================================================================
 PImage personaje, rayos, enrique, donpollo; // Declaracion de tipo imagen
 
 // Estado de las teclas
@@ -9,6 +10,7 @@ boolean dash = false;
 
 // Delay para dash
 long tiempo, tiempoanterior = 0;
+int esperaDash = 1000;
 
 // Movimiento
 int movX = 0; // 1 es derecha y -1 es izquierda
@@ -77,7 +79,7 @@ String[] nombresPersonajes = {"Gatito", "Among Us", "Patito", "Homero"};
 int seleccion = 0;        // personaje elegido (0 a 3). // al pasar el último vuelve al primero
 float separacion = 240;   // distancia horizontal entre un personaje y el siguiente
 
-// =============== CLASE DEL PERSONAJE ==================
+// ==================================== CLASE PERSONAJE =============================================
 class Jugador 
 {
   int vida = 10;
@@ -242,7 +244,7 @@ void draw()
   if (arriba) movY--;
 
   // ------ MECÁNICA DE DASH ------
-  if (dash && tiempo - tiempoanterior >= 1000) // con delay de 1 segundo
+  if (dash && tiempo - tiempoanterior >= esperaDash) // con delay de 1 segundo
   {
     // guarda la posicion y direccion de cuando se hizo
     anteriorX = jugador.x;
@@ -321,6 +323,16 @@ void draw()
   noFill(); // sin pintar el interior
   stroke(255); // bordes blancos
   rect(limiteX, limiteY, 300, 300); 
+  
+  // -------- BARRA DE DASH (solo aparece mientras se carga) --------
+  float cargado = tiempo - tiempoanterior; // ms desde el último dash
+  if (cargado < esperaDash)
+  {
+    float anchoBarra = map(cargado, 0, esperaDash, 150, 0); // crece de 0 a 300 píxeles
+    stroke(0);
+    fill(26, 82, 140); // color azulado
+    rect(425, 465, anchoBarra, 5);
+  }
 }
 
 // =================================================================== FUNCIONES ==================================================================================
@@ -363,24 +375,24 @@ void dibujarIntro()
   
   background(0);
   
-  // --- PERSONAJES ---
-if (hablaPollo) 
-{
-  tint(255);
-  image(donpollo, polloX, personajesY - saltito);
-  tint(90);
-  image(enrique, ranaX, personajesY);
-}
-else
-{
-  tint(90);
-  image(donpollo, polloX, personajesY);
-  tint(255);
-  image(enrique, ranaX, personajesY - saltito);
-}
-noTint();
+  // --- PERSONAJES EN INTRO ---
+  if (hablaPollo) 
+  {
+    tint(255);
+    image(donpollo, polloX, personajesY - saltito);
+    tint(90);
+    image(enrique, ranaX, personajesY);
+  }
+  else
+  {
+    tint(90);
+    image(donpollo, polloX, personajesY);
+    tint(255);
+    image(enrique, ranaX, personajesY - saltito);
+  }
+  noTint();
 
-  // --- SUBTÍTULOS ---
+  // --- DIBUJA SUBTÍTULOS ---
   textAlign(CENTER, CENTER); // da la colocacion centrada
   textSize(22); // tamaño de los nombres
   if (hablaPollo) 
@@ -399,7 +411,13 @@ noTint();
   float xTexto = ((width/2) - (textWidth(texto) / 2)); // posicion para que quede centrada
   text(texto.substring(0, letras), xTexto, 520); // le va pasando de a poco las letras
 
-  // --- Transicion ---
+  // --- SKIP DE INTRO ---
+  textAlign(RIGHT, BOTTOM);
+  textSize(16);
+  fill(150); // gris, para que no distraiga
+  text("SKIP <ESPACIO>", width - 20, height - 15);
+
+  // --- TRANSICION ---
   float transicion = 0;
   if (ahora - inicioIntro < duracionTransicion) // transicion cuando arranca el programa
   {
@@ -459,14 +477,14 @@ void dibujarMenu()
   textSize(30);
   text(nombresPersonajes[seleccion], width / 2, 440);
 
-  // Ayuda
+  // Ayuda en el menú
   fill(200);
   textSize(16);
   text("Flechas izquierda / derecha: elegir          ENTER: jugar", width / 2, 540);
   popStyle();
 }
 
-// Dibuja un personaje centrado en x, con un tamaño y una opacidad
+// ------ DIBUJAR PERSONAJES EN MENU -------
 void dibujarPersonaje(PImage img, float x, float tam, float opacidad) 
 {
   tint(255, opacidad); 
@@ -476,7 +494,7 @@ void dibujarPersonaje(PImage img, float x, float tam, float opacidad)
   noTint();
 }
 
-// dir = 1 avanza al siguiente personaje, -1 al anterior
+// ----- MOVER SELECCION EN MENÚ --------
 void moverSeleccion(int dir) 
 {
   int n = opciones.length;
@@ -492,7 +510,7 @@ void moverSeleccion(int dir)
   }
 }
 
-// Deja el personaje elegido y empieza el juego
+// ----- COMIENZA EL JUEGO -------
 void comenzarJuego() 
 {
   personaje = opciones[seleccion];
@@ -500,7 +518,7 @@ void comenzarJuego()
 }
 
 // ================= FUNCIONES DENTRO DEL JUEGO =================
-// --------- Generador de naranjas ---------
+// --------- GENERADOR DE NARANJAS ---------
 void nuevoProyectil() 
 {
   int borde = int(random(4)); // genera una naranja en cualquier borde
@@ -520,12 +538,20 @@ void nuevoProyectil()
   }
 }
 
-// -------- Si se preciona alguna tecla ----------
+// -------- KEY PRESSED ----------
 void keyPressed() 
 {
-  if (enIntro) return; // durante la presentación el teclado no hace nada
+  if (enIntro) // solo se puede saltear con el skip
+  {
+    if (key == ' ' && !saliendo)
+    {
+      saliendo = true;          // empieza la salida
+      inicioSalida = millis();  // reinicia el cronómetro del fundido
+    }
+    return;                     // el resto de las teclas se ignoran
+  }
 
-  // En el menú se usan flechas de los costados para seleccionar y ENTER para empezar
+  // EN EL MENÚ SE USAN FLECHAS DE LOS COSTADOS PARA SELECCIONAR Y <ENTER> PARA EMPEZAR
   if (enMenu) 
   {
     if (keyCode == RIGHT) moverSeleccion(1);
@@ -534,7 +560,7 @@ void keyPressed()
     return;
   }
 
-  // movimientos del gato en el juego
+  // MOVIMIENTO DEL GATO EN EL JUEGO
   if (keyCode == RIGHT) derecha = true;
   if (keyCode == LEFT) izquierda = true;
   if (keyCode == UP) arriba = true;
@@ -542,7 +568,7 @@ void keyPressed()
   if (key == ' ') dash = true;
 }
 
-// Detecta cuando se deja de apretar una tecla
+// DETECTA CUANDO SE DEJA DE APRETAR UNA TECLA
 void keyReleased() 
 {
   if (enIntro || enMenu) return;
