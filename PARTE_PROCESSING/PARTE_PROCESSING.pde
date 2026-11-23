@@ -2,29 +2,65 @@ float x, y;
 float velocidad = 5;
 float dx, dy;
 boolean activo=true;
+PImage gatito;
+int[][] figura = {
+  {0, 1, 0, 1, 0},
+  {1, 1, 1, 1, 1},
+  {1, 1, 1, 1, 1},
+  {0, 1, 1, 1, 0},
+  {0, 0, 1, 0, 0}
+};
+// COORDENADAS DEL DIBUJO
+int posX = 5;
+int posY = 5;
+// DIMENSIONES DE CADA CUADRADO
+int tam = 4;
+int vida;
 void setup(){
 size(800,600);
+gatito = loadImage("gatitoterminado.png");
 noCursor();
      x = 0;
      y = height / 2;
+vida=10;
+
 }
 
 void draw(){
 background(0);
+ // COLOR
+  fill(255, 0, 0);
+
+  // RECORRER MATRIZ
+  for(int i=0;i<vida;i++){
+  for (int fila = 0; fila < figura.length; fila++) {
+    for (int columna = 0; columna < figura[fila].length; columna++) {
+
+      if (figura[fila][columna] == 1) {
+
+        float x = posX*5*i + columna * tam;
+        float y = posY + fila * tam;
+
+        rect(x, y, tam, tam);
+      }
+    }
+  }
+  }
+image(gatito, mouseX-50, mouseY-50,100,100);
 stroke(220,0,0);
 fill(220,0,0);
- rect(mouseX-25/1.5 ,mouseY-5/1.5    ,50/1.5    ,10/1.5);
- rect(mouseX-20/1.5 ,mouseY+5/1.5    ,40/1.5    ,5/1.5);
- rect(mouseX-15/1.5 ,mouseY+10/1.5   ,30/1.5    ,5/1.5);
- rect(mouseX-10/1.5 ,mouseY+15/1.5   ,20/1.5    ,5/1.5);
- rect(mouseX-5/1.5  ,mouseY+20/1.5   ,10/1.5    ,5/1.5);
- rect(mouseX-20/1.5 ,mouseY-10/1.5   ,15/1.5    ,5/1.5);
- rect(mouseX+5/1.5  ,mouseY-10/1.5   ,15/1.5    ,5/1.5);
+// rect(mouseX-25/1.5 ,mouseY-5/1.5    ,50/1.5    ,10/1.5);
+// rect(mouseX-20/1.5 ,mouseY+5/1.5    ,40/1.5    ,5/1.5);
+// rect(mouseX-15/1.5 ,mouseY+10/1.5   ,30/1.5    ,5/1.5);
+// rect(mouseX-10/1.5 ,mouseY+15/1.5   ,20/1.5    ,5/1.5);
+// rect(mouseX-5/1.5  ,mouseY+20/1.5   ,10/1.5    ,5/1.5);
+// rect(mouseX-20/1.5 ,mouseY-10/1.5   ,15/1.5    ,5/1.5);
+// rect(mouseX+5/1.5  ,mouseY-10/1.5   ,15/1.5    ,5/1.5);
 
- stroke(250,0,0);
-fill(250,0,0);
- rect(mouseX+10/1.5 ,mouseY-5/1.5    ,10/1.5    ,5/1.5);
- rect(mouseX+15/1.5 ,mouseY          ,5/1.5     ,5/1.5);
+// stroke(250,0,0); //brillito
+//fill(250,0,0);
+// rect(mouseX+10/1.5 ,mouseY-5/1.5    ,10/1.5    ,5/1.5);
+// rect(mouseX+15/1.5 ,mouseY          ,5/1.5     ,5/1.5);
 if (activo == false) {
 nuevoProyectil();
   activo = true;
@@ -53,6 +89,7 @@ nuevoProyectil();
   ellipse(x, y, 20, 20);
   }else{
   activo=false;
+  vida=vida-1;
   }
   
  }
