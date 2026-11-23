@@ -3,8 +3,8 @@ float velocidad = 5;
 float dx, dy;
 boolean activo = true;
 
-// Imágenes (dos gatitos para la dirección + rayos)
-PImage gatitoizq, gatitoder, rayos;
+// Una sola imagen para el personaje
+PImage gatito, rayos;
 
 int[][] figura = {
   {0, 1, 0, 1, 0},
@@ -26,16 +26,16 @@ int limiteX = 350;
 int limiteY = 150;
 
 // Para la animación de caminata del gatito
-float animFase = 0;       // Acumula el "tiempo" de la caminata
-float animIntensidad = 0; // 0 = quieto, 1 = caminando a pleno
-float prevMouseX;         // Para saber si va a la izquierda o derecha
+float animFase = 0;       
+float animIntensidad = 0; 
+float prevMouseX;         
+int direccionMirada = 1;  // 1 para un lado, -1 para voltear la imagen
 
 void setup() {
   size(1000, 600);
   
-  // Cargar imágenes
-  gatitoizq = loadImage("gatitoterminado.png");  // Mirando a la izquierda (o por defecto)
-  gatitoder = loadImage("gatitoterminado2.png"); // Mirando a la derecha
+  // Cargamos una sola imagen
+  gatito = loadImage("gatito.png");  
   rayos = loadImage("rayos.png");
   rayos.resize(1000, 600); 
   
@@ -53,9 +53,9 @@ void draw() {
   // --- RAYOS (Aparecen si la vida es menor o igual a 3) ---
   if (vida <= 3) {
     float opacidadRayos = map(sin(frameCount * 0.20), -1, 1, 100, 255);
-    tint(255, opacidadRayos); // Aplica transparencia variable
+    tint(255, opacidadRayos); 
     image(rayos, 1, 1);
-    noTint(); // Desactivar tint para que no afecte a los demás elementos
+    noTint(); 
   }
 
   // --- DIBUJAR CORAZONES CON EFECTO DE LATIDO ---
@@ -63,7 +63,6 @@ void draw() {
   stroke(255, 0, 0);
   
   for (int i = 0; i < vida; i++) {
-    // Velocidad del latido según la vida restante
     float velocidadLatido = 0.025 * (11 - vida); 
     float latido = sin(frameCount * velocidadLatido) * 0.2; 
     float escalaActual = 1.0 + latido; 
@@ -82,41 +81,39 @@ void draw() {
     }
   }
  
-  // --- ANIMACIÓN DE CAMINATA Y DIRECCIÓN DEL GATITO ---
+  // --- ANIMACIÓN Y DIRECCIÓN DEL GATITO CON 1 SOLA FOTO ---
   float movimiento = dist(mouseX, mouseY, pmouseX, pmouseY);
   boolean caminando = movimiento > 0.5;
 
-  // Intensidad suave: sube cuando camina, baja cuando se frena
   float objetivo = caminando ? 1 : 0;
   animIntensidad = lerp(animIntensidad, objetivo, 0.15);
 
-  // La fase avanza solo si se mueve
   if (caminando) {
     animFase += 0.25 + constrain(movimiento * 0.01, 0, 0.15);
   }
 
-  // Cálculo de los efectos de movimiento
-  float rebote   = abs(sin(animFase)) * 6 * animIntensidad;        
-  float balanceo = sin(animFase) * 0.12 * animIntensidad;          
-  float escalaX  = 1 + sin(animFase * 2) * 0.06 * animIntensidad;  
-  float escalaY  = 1 - sin(animFase * 2) * 0.06 * animIntensidad;
-
-  // Detectar dirección en la que se mueve el mouse
-  PImage gatitoActual = gatitoizq; // Por defecto
+  // Detectar hacia dónde se mueve el mouse para voltear la imagen horizontalmente
   if (mouseX > prevMouseX) {
-    gatitoActual = gatitoder;
+    direccionMirada = -1; // Voltea la imagen hacia la derecha (ajusta a 1 si tu imagen mira al revés)
   } else if (mouseX < prevMouseX) {
-    gatitoActual = gatitoizq;
+    direccionMirada = 1;  // Imagen normal hacia la izquierda
   }
   prevMouseX = mouseX;
 
-  // Dibujar el gatito con transformaciones y animación
+  // Cálculo de efectos
+  float rebote   = abs(sin(animFase)) * 6 * animIntensidad;        
+  float balanceo = sin(animFase) * 0.12 * animIntensidad;          
+  // Multiplicamos escalaX por direccionMirada para espejar la imagen sin perder la animación
+  float escalaX  = (1 + sin(animFase * 2) * 0.06 * animIntensidad) * direccionMirada;  
+  float escalaY  = 1 - sin(animFase * 2) * 0.06 * animIntensidad;
+
+  // Dibujar el gatito espejado y animado
   pushMatrix();
-  translate(mouseX, mouseY - rebote); // Posición centrada
+  translate(mouseX, mouseY - rebote); 
   rotate(balanceo);
-  scale(escalaX, escalaY);
+  scale(escalaX, escalaY); // Aquí ocurre la magia del espejo
   imageMode(CENTER);
-  image(gatitoActual, 0, 0, 60, 60);
+  image(gatito, 0, 0, 60, 60);
   imageMode(CORNER);   
   popMatrix();
 
@@ -130,7 +127,6 @@ void draw() {
     dx = mouseX - x; 
     dy = mouseY - y; 
 
-    // Normalizar dirección
     float distancia = dist(x, y, mouseX, mouseY);
 
     if (distancia > 0) { 
@@ -138,11 +134,9 @@ void draw() {
       dy = dy / distancia;
     }
     
-    // Mover proyectil
     x = x + dx * velocidad; 
     y = y + dy * velocidad;
 
-    // Dibujar proyectil
     if (distancia > 20) { 
       fill(255, 80, 0);
       noStroke();
