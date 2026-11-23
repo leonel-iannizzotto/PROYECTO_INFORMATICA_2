@@ -1,4 +1,4 @@
-PImage gatito, rayos;
+PImage personaje, rayos, prueba, prueba2; // Declaracion de tipo imagen
 
 // Estado de las teclas
 boolean derecha = false;
@@ -7,24 +7,25 @@ boolean arriba = false;
 boolean abajo = false;
 boolean dash = false;
 
+// Delay para dash
 long tiempo, tiempoanterior = 0;
 
-// Movimiento del teclado
-int movX = 0;
-int movY = 0;
+// Movimiento
+int movX = 0; // 1 es derecha y -1 es izquierda
+int movY = 0; // -1 es arriba y 1 es abajo. En este caso los pixeles aumentan hacia abajo en la pantalla
 
-// Estela del Dash
+// Estela que deja el dash
 float anteriorX, anteriorY;
 int anteriorDireccion = 1; // hacia dónde miraba el gato cuando hizo el dash
 int transparencia = 0;
 
 // Proyectil (Naranjas)
-float xProj, yProj;
-float velocidadProyectil = 2;
-float dx, dy;
-boolean activo = true;
+float xProj, yProj; // Pocision horizontal y vertical
+float velocidadProyectil = 2; // velocidad modificable
+float dx, dy; // direcciones hacia el jugador
+boolean activo = true; // dice si hay proyectil
 
-// Configuración de corazones y vida
+// Dibujo de corazon de vida
 int[][] figura = {
   {0, 1, 0, 1, 0},
   {1, 1, 1, 1, 1},
@@ -32,47 +33,63 @@ int[][] figura = {
   {0, 1, 1, 1, 0},
   {0, 0, 1, 0, 0}
 };
-int posX = 5;
-int posY = 5;
-int tam = 4;
+int posX = 5; // pocision inicial en x
+int posY = 5; // posicion inicial en y
+int tam = 4; // tamaño de corazon
 
-// Cuadrado / límites
+// posicion de dibujo del cuadrado
 int limiteX = 350;
 int limiteY = 150;
 
-class Jugador {
+// =============== CLASE DEL PERSONAJE ==================
+class Jugador 
+{
   int vida = 10;
-  float x = 500;
-  float y = 300;
-  float velocidad = 4;
+  float x = 500; // pocicion inicial
+  float y = 300; // posicion inicial
+  float velocidad = 4; // cambio por ciclo
   int direccionMirada = 1; // 1 para un lado, -1 para voltear la imagen
 
   // Animación de caminata
   float animFase = 0;       // acumula el "tiempo" de la caminata
   float animIntensidad = 0; // 0 = quieto, 1 = caminando a pleno
+  
+  // -------- FUNCION MOVER PERSONAJE -------------
+  void mover(float mx, float my) 
+  {
+    x += mx * velocidad; // modifica la posicion en x
+    y += my * velocidad; // modifica la posicion en y
 
-  void mover(float mx, float my) {
-    x += mx * velocidad;
-    y += my * velocidad;
-
-    // Mantener al gatito dentro de los bordes de la pantalla
-    x = constrain(x, 30, width - 30);
-    y = constrain(y, 30, height - 30);
+    // Mantener al personaje dentro de los bordes del cuadro blanco
+    x = constrain(x, 370, 630);
+    y = constrain(y, 172, 435);
   }
 
-  // Se llama una vez por frame, indicando si el jugador se está moviendo
-  void animar(boolean caminando) {
-    // Intensidad suave: sube al caminar, baja al frenar
-    float objetivo = caminando ? 1 : 0;
-    animIntensidad = lerp(animIntensidad, objetivo, 0.15);
+  // -------- FUNCION ANIMAR PERSONAJE --------------
+  // Una vez por frame, indica si el jugador se está moviendo
+  void animar(boolean caminando) 
+  {
+    float objetivo; // quiere llegar a 1 cuando camina o quiere llegar a 0 cuando no camina
+      if (caminando)
+      {
+        objetivo = 1;
+      }
+      else
+      {
+        objetivo = 0;
+      }
+    animIntensidad = lerp(animIntensidad, objetivo, 0.15); // para cambiar entre caminando y no caminando de manera suave. lerp sube de a poco la intensidad hasta el objetivo a una velocidad de 0.15
 
     // La fase avanza solo si se mueve
-    if (caminando) {
-      animFase += 0.25;
+    if (caminando) 
+    {
+      animFase = animFase + 0.25; // sube indefinidamente, permite generar el movimiento con sin()
     }
   }
 
-  void mostrar() {
+  // -------- FUNCION MOSTRAR PERSONAJE ----------------
+  void mostrar() 
+  {
     // Cálculo de los efectos
     float rebote   = abs(sin(animFase)) * 6 * animIntensidad;       // salto en píxeles
     float balanceo = sin(animFase) * 0.12 * animIntensidad;         // rotación en radianes
@@ -84,22 +101,25 @@ class Jugador {
     rotate(balanceo);
     scale(direccionMirada * escalaX, escalaY); // volteo y squash en un solo scale
     imageMode(CENTER);
-    image(gatito, 0, 0, 60, 60);
+    image(personaje, 0, 0, 60, 60);
     imageMode(CORNER);
     popMatrix();
   }
 }
 
-Jugador gato;
+Jugador jugador;
 
+// ======================== SETUP ================================
 void setup() {
   size(1000, 600);
 
-  gatito = loadImage("gatito.png");
+  personaje = loadImage("gatito.png");
   rayos = loadImage("rayos.png");
+  prueba = loadImage("prueba.png");
+  prueba2= loadImage("donpollo.png");
+  
   rayos.resize(1000, 600);
-
-  gato = new Jugador();
+  jugador = new Jugador();
 
   xProj = 0;
   yProj = height / 2;
@@ -108,9 +128,11 @@ void setup() {
 void draw() {
   background(0);
   tiempo = millis();
+image(prueba2,670,110);
+image(prueba,550,90);
 
   // --- RAYOS (Aparecen si la vida es menor o igual a 3) ---
-  if (gato.vida <= 3) {
+  if (jugador.vida <= 3) {
     float opacidadRayos = map(sin(frameCount * 0.20), -1, 1, 100, 255);
     tint(255, opacidadRayos);
     image(rayos, 1, 1);
@@ -121,8 +143,8 @@ void draw() {
   fill(255, 0, 0);
   stroke(255, 0, 0);
 
-  for (int i = 0; i < gato.vida; i++) {
-    float velocidadLatido = 0.025 * (11 - gato.vida);
+  for (int i = 0; i < jugador.vida; i++) {
+    float velocidadLatido = 0.025 * (11 - jugador.vida);
     float latido = sin(frameCount * velocidadLatido) * 0.2;
     float escalaActual = 1.0 + latido;
 
@@ -144,11 +166,11 @@ void draw() {
   movX = 0;
   if (derecha) {
     movX++;
-    gato.direccionMirada = -1; // Ajusta a 1 o -1 según hacia dónde mire tu imagen base
+    jugador.direccionMirada = -1; // Ajusta a 1 o -1 según hacia dónde mire tu imagen base
   }
   if (izquierda) {
     movX--;
-    gato.direccionMirada = 1;
+    jugador.direccionMirada = 1;
   }
 
   movY = 0;
@@ -157,16 +179,16 @@ void draw() {
 
   // --- MECÁNICA DE DASH ---
   if (dash && tiempo - tiempoanterior >= 1000) {
-    anteriorX = gato.x;
-    anteriorY = gato.y;
-    anteriorDireccion = gato.direccionMirada;
+    anteriorX = jugador.x;
+    anteriorY = jugador.y;
+    anteriorDireccion = jugador.direccionMirada;
 
-    gato.mover(movX * 15, movY * 15);
+    jugador.mover(movX * 15, movY * 15);
 
     transparencia = 150;
     tiempoanterior = tiempo;
   } else {
-    gato.mover(movX, movY);
+    jugador.mover(movX, movY);
   }
 
   // --- DIBUJAR ESTELA DEL DASH ---
@@ -176,7 +198,7 @@ void draw() {
     scale(anteriorDireccion, 1);
     tint(255, transparencia);
     imageMode(CENTER);
-    image(gatito, 0, 0, 60, 60);
+    image(personaje, 0, 0, 60, 60);
     imageMode(CORNER);
     noTint();
     popMatrix();
@@ -185,8 +207,8 @@ void draw() {
   }
 
   // --- DIBUJAR AL GATO (con animación de saltitos) ---
-  gato.animar(movX != 0 || movY != 0); // true si hay alguna flecha presionada
-  gato.mostrar();
+  jugador.animar(movX != 0 || movY != 0); // true si hay alguna flecha presionada
+  jugador.mostrar();
 
   // --- NARANJAS QUE PERSIGUEN AL GATO ---
   if (activo == false) {
@@ -195,11 +217,11 @@ void draw() {
   }
 
   if (activo) {
-    dx = gato.x - xProj;
-    dy = gato.y - yProj;
+    dx = jugador.x - xProj;
+    dy = jugador.y - yProj;
 
     // Normalizar dirección
-    float distancia = dist(xProj, yProj, gato.x, gato.y);
+    float distancia = dist(xProj, yProj, jugador.x, jugador.y);
 
     if (distancia > 0) {
       dx = dx / distancia;
@@ -217,7 +239,7 @@ void draw() {
       ellipse(xProj, yProj, 20, 20);
     } else {
       activo = false;
-      gato.vida = gato.vida - 1;
+      jugador.vida = jugador.vida - 1;
     }
   }
 
