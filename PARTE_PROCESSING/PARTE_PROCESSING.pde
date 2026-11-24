@@ -60,13 +60,18 @@ int avisoHuesos = 45; // frames de aviso
 int duracionHuesos = 150; // frames peligrosos
 int ajusteHueso = 6; // hitbox
 int anchoHueso = 27, largoHueso = 180;  // tamaño del png
+float anguloHuesos = 0; // 0 = normal, 90° = rotado (se sortea en cada ataque)
 
 // ----- ATAQUE 1: CRUZ -----
 float cruzX, cruzY; // centro de la cruz
 int tiempoSeguimiento = 30; // frames en que la cruz sigue al jugador 
 int tiempoBloqueo = 35; // frames con la cruz fija
 int tiempoDisparo = 20; // frames en que los rayos hacen daño
-int anchoCruz = 120; 
+int anchoCruz = 120; // grosor de los rayos de la cruz (+)
+int anchoCruzX = 90; // grosor de los rayos de la X
+int anchoActual = 120; // grosor del modo que salió en este ataque
+float anguloCruz = 0; // 0 = cruz (+), 45° = X (se sortea en cada ataque)
+int largoRayo = 1200; // mitad del largo de los rayos: alcanza para cubrir toda la pantalla
 
 // ----- ATAQUE 2: CUCHILLOS -----
 int olas = 3; // cuántas olas tiene el ataque
@@ -553,7 +558,10 @@ void iniciarAtaque()
   ataqueActual = nuevo;
   contador = 0;
 
-  if (nuevo == 2) iniciarCuchillos(); // los cuchillos preparan sus olas antes de empezar
+  // cada ataque prepara lo suyo antes de empezar
+  if (nuevo == 0) iniciarHuesos();
+  if (nuevo == 1) iniciarCruz();
+  if (nuevo == 2) iniciarCuchillos();
 }
 
 // ------ TERMINAR ATAQUE ------
@@ -563,7 +571,7 @@ void terminarAtaque()
   contador = 0;
 }
 
-// ------- VER SI HAY COLISION -------
+// ------- VER SI HAY COLISION CON UN RECTÁNGULO -------
 // Devuelve true si la caja del jugador toca el rectángulo.
 // rx, ry = esquina de arriba a la izquierda del rectángulo
 // rw, rh = ancho y alto del rectángulo
@@ -591,6 +599,25 @@ boolean colisionRect(float rx, float ry, float rw, float rh)
   return true;
 }
 
+// ------- Colision Franja -------
+boolean colisionFranja(float px, float py, float angulo, float ancho)
+{
+  float dx = jugador.x - px; // desde el centro del rayo hasta el jugador
+  float dy = jugador.y - py;
+
+  // (nx, ny) apunta hacia el costado del rayo (perpendicular a su dirección)
+  float nx = -sin(angulo);
+  float ny = cos(angulo);
+
+  // qué tan lejos del eje del rayo está el centro del jugador
+  float distancia = abs(dx * nx + dy * ny);
+
+  // hasta dónde llega el golpe
+  float alcance = ancho / 2 + radioHitbox * (abs(nx) + abs(ny));
+
+  return distancia < alcance;
+}
+
 // -------- PERDER VIDA -----------
 void reducirVida() 
 {
@@ -602,6 +629,26 @@ void reducirVida()
 }
 
 // ----- ATAQUE 0: HUESOS -----
+// --- inicializa huesos ---
+void iniciarHuesos() 
+{
+  if (random(1) < 0.5) anguloHuesos = 0;
+  else anguloHuesos = radians(90);
+}
+
+// ---- Colision Huesos ----
+boolean colisionHueso(float rx, float ry, float rw, float rh) 
+{
+  if (anguloHuesos == 0) return colisionRect(rx, ry, rw, rh); // normal
+
+  float cx = limiteX + tamCaja / 2; // centro de la caja
+  float cy = limiteY + tamCaja / 2;
+  float nuevoX = cx - (ry - cy) - rh;
+  float nuevoY = cy + (rx - cx);
+  return colisionRect(nuevoX, nuevoY, rh, rw);
+}
+
+// --------- Actualizar Huesos ----------
 void actualizarHuesos() 
 {
   boolean peligroso = (contador > avisoHuesos); // en el aviso se ven transparentes y no hacen daño
@@ -609,36 +656,60 @@ void actualizarHuesos()
 
   if (peligroso) tint(255); else tint(90);
 
-  clip(limiteX, limiteY, tamCaja, tamCaja); // para que los huesos solo se vean dentro de la caja
-  for (int i = 0; i < numHuesos; i++) 
-  {
-    int x = limiteX + i * anchoColumna + 5;
-    float centro = limiteY + tamCaja / 2 + amplitudHueso * sin(fase + i * desfaseOnda); // centro del pasillo en esta columna
-    int techo = int(centro - huecoHueso / 2); // donde termina el hueso de arriba
-    int piso = int(centro + huecoHueso / 2); // donde empieza el hueso de abajo
+  clip(limiteX, limiteY, tamCaja, tamCaja); // para que los huesos solo se vean dentro de la caja (antes de girar: la caja es cuadrada y no cambia)
+  
+  // rotate dibuja todo igual, pero rotado
+  pushMatrix();
+    translate(limiteX + tamCaja / 2, limiteY + tamCaja / 2); // el origen pasa al centro de la caja
+    rotate(anguloHuesos); // 0 = normal, 90° = rotado
+    translate(-(limiteX + tamCaja / 2), -(limiteY + tamCaja / 2)); // se devuelve el origen: lo de abajo se dibuja igual que siempre, ya girado
 
-    image(hueso, x, techo - largoHueso); // hueso de arriba
-    image(hueso, x, piso); // hueso de abajo
-
-    if (peligroso) 
+    for (int i = 0; i < numHuesos; i++) 
     {
-      if (colisionRect(x + ajusteHueso, techo - largoHueso, anchoHueso - 2 * ajusteHueso, largoHueso)) // llama a la funcion que verifica la colision y devuelve el resultado
+      int x = limiteX + i * anchoColumna + 5;
+      float centro = limiteY + tamCaja / 2 + amplitudHueso * sin(fase + i * desfaseOnda); // centro del pasillo en esta columna
+      int techo = int(centro - huecoHueso / 2); // donde termina el hueso de arriba
+      int piso = int(centro + huecoHueso / 2); // donde empieza el hueso de abajo
+
+      image(hueso, x, techo - largoHueso); // hueso de arriba
+      image(hueso, x, piso); // hueso de abajo
+
+      if (peligroso) 
       {
-        reducirVida(); 
-      }
-      if (colisionRect(x + ajusteHueso, piso, anchoHueso - 2 * ajusteHueso, largoHueso)) 
-      {
-        reducirVida();
+        if (colisionHueso(x + ajusteHueso, techo - largoHueso, anchoHueso - 2 * ajusteHueso, largoHueso)) // llama a la funcion que verifica la colision y devuelve el resultado
+        {
+          reducirVida(); 
+        }
+        if (colisionHueso(x + ajusteHueso, piso, anchoHueso - 2 * ajusteHueso, largoHueso)) 
+        {
+          reducirVida();
+        }
       }
     }
-  }
+  popMatrix();
   noClip();
   noTint();
 
   if (contador > avisoHuesos + duracionHuesos) terminarAtaque(); // termina el ataque
 }
 
-// ----- ATAQUE 1: CRUZ (+) -----
+// ----- ATAQUE 1: CRUZ (+) o (x) -----
+// --- inicializa el modo ---
+void iniciarCruz() 
+{
+  if (random(1) < 0.5) 
+  {
+    anguloCruz = 0; // +
+    anchoActual = anchoCruz;
+  } 
+  else 
+  {
+    anguloCruz = radians(45); // x
+    anchoActual = anchoCruzX;
+  }
+}
+
+// ------ Actualizar Cruz --------
 void actualizarCruz() 
 {
   if (contador < tiempoSeguimiento) // la cruz sigue al jugador
@@ -647,21 +718,33 @@ void actualizarCruz()
     cruzY = jugador.y;
   }
 
+  boolean disparando = (contador >= tiempoSeguimiento + tiempoBloqueo); // antes de eso es solo aviso
+
   noStroke();
-  
-  if (contador < tiempoSeguimiento + tiempoBloqueo) // queda quieta
+
+  pushMatrix();
+    translate(cruzX, cruzY); // el origen pasa al centro de la cruz
+    rotate(anguloCruz); // 0 = cruz (+), 45° = X. Los dos rayos se dibujan igual, solo cambia el giro
+
+    if (!disparando) // queda quieta
+    {
+      if (contador < tiempoSeguimiento) fill(120); else fill(255, 0, 0); // líneas finas grises mientras sigue al jugador, rojas cuando ya quedó fija
+      rect(-2, -largoRayo, 4, largoRayo * 2); // línea vertical
+      rect(-largoRayo, -2, largoRayo * 2, 4); // línea horizontal
+    } 
+    else // dispara
+    {
+      fill(255);
+      rect(-anchoActual / 2, -largoRayo, anchoActual, largoRayo * 2); // rayo vertical
+      rect(-largoRayo, -anchoActual / 2, largoRayo * 2, anchoActual); // rayo horizontal
+    }
+  popMatrix();
+
+  if (disparando) 
   {
-    if (contador < tiempoSeguimiento) fill(120); else fill(255, 0, 0); // líneas finas grises mientras sigue al jugador, rojas cuando ya quedó fija
-    rect(cruzX - 2, 0, 4, height);
-    rect(0, cruzY - 2, width, 4);
-  } 
-  else // dispara
-  {
-    fill(255);
-    rect(cruzX - anchoCruz / 2, 0, anchoCruz, height); // rayo vertical
-    rect(0, cruzY - anchoCruz / 2, width, anchoCruz);  // rayo horizontal
-    if (colisionRect(cruzX - anchoCruz / 2, 0, anchoCruz, height)) reducirVida(); // llama a la funcion que verifica la colision y devuelve el resultado
-    if (colisionRect(0, cruzY - anchoCruz / 2, width, anchoCruz)) reducirVida();
+    // los dos rayos: uno con el ángulo de la cruz y el otro girado 90°
+    if (colisionFranja(cruzX, cruzY, anguloCruz, anchoActual)) reducirVida(); // llama a la funcion que verifica la colision y devuelve el resultad
+    if (colisionFranja(cruzX, cruzY, anguloCruz + radians(90), anchoActual)) reducirVida();
   }
 
   if (contador >= tiempoSeguimiento + tiempoBloqueo + tiempoDisparo) terminarAtaque(); // termina el ataque
