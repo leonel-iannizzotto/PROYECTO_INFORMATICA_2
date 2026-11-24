@@ -1,3 +1,5 @@
+import processing.serial.*;
+
 // =============================================================== VARIABLES ======================================================================================
 PImage personaje, rayos, enrique, donpollo, cuchillo, hueso; // Declaracion de tipo imagen
 
@@ -13,8 +15,8 @@ long tiempo, tiempoanterior = 0;
 int esperaDash = 1000;
 
 // Movimiento
-int movX = 0; // 1 es derecha y -1 es izquierda
-int movY = 0; // -1 es arriba y 1 es abajo. En este caso los pixeles aumentan hacia abajo en la pantalla
+float movX = 0; // 1 es derecha y -1 es izquierda
+float movY = 0; // -1 es arriba y 1 es abajo. En este caso los pixeles aumentan hacia abajo en la pantalla
 
 // Estela que deja el dash
 float anteriorX, anteriorY;
@@ -120,6 +122,23 @@ String[] nombresPersonajes = {"Gatito", "Among Us", "Patito", "Homero"};
 int seleccion = 0;        // personaje elegido (0 a 3). // al pasar el último vuelve al primero
 float separacion = 240;   // distancia horizontal entre un personaje y el siguiente
 
+// =============== COMUNICACION ARDUINO =================
+Serial puerto;
+
+// Valores recibidos del joystick
+int joyX = 512;
+int joyY = 512;
+
+// Botones recibidos
+boolean botonSeleccion = false;
+boolean seleccionAnterior = false;
+
+// Control de selección en el menú
+int estadoMenuJoystick = 0;
+
+// Control para que el dash se ejecute una sola vez por pulsación
+boolean dashAnterior = false;
+
 // ==================================== CLASE PERSONAJE =============================================
 class Jugador 
 {
@@ -189,6 +208,11 @@ Jugador jugador;
 void setup() 
 {
   size(1000, 600); // tamaño pantalla
+  
+  // -------- COMUNICACION SERIAL -------
+  println(Serial.list()); // muestra los puertos disponibles
+  puerto = new Serial(this, Serial.list()[1], 9600); // SELECCIONAR EL PUERTO CORRECTO
+  puerto.bufferUntil('\n');
 
   // Personajes del menú de selección
   for (int i = 0; i < opciones.length; i++) 
@@ -213,6 +237,9 @@ void setup()
 // =================================================================== DRAW ==================================================================================
 void draw() 
 {
+  
+  actualizarBotonSeleccion();
+  
   // -------- INTRO --------
   if (enIntro) 
   {
@@ -223,6 +250,7 @@ void draw()
   // -------- MENÚ ---------
   if (enMenu) 
   {
+    actualizarMenuJoystick();
     dibujarMenu();
     return;
   }
@@ -238,7 +266,7 @@ void draw()
   dibujarEstelaDash();
   actualizarAtaques(); // elige, dibuja y revisa los golpes del ataque actual
 
-  // ---- DIBUJAR AL GATO CON ANIMACIONES ----
+  // ---- DIBUJAR AL PERSONAJE CON ANIMACIONES ----
   jugador.animar(movX != 0 || movY != 0); // true si hay alguna flecha presionada
   if (millis() < invulnerableHasta && (frameCount / 5) % 2 == 0) tint(255, 70); // parpadea mientras se recupera de un golpe
   jugador.mostrar();
@@ -474,45 +502,55 @@ void dibujarCorazones()
   }
 }
 
-// ------ CALCULAR DIRECCIÓN DEL TECLADO ------
-void calcularDireccion() 
+// ------ CALCULAR DIRECCION DEL JOYSTICK ------
+void calcularDireccion()
 {
-  movX = 0;
-  if (derecha) 
+  // Movimiento horizontal
+  movX = (joyX - 512) / 512.0;
+  // Movimiento vertical
+  movY = (joyY - 512) / 512.0;
+
+  // Zona muerta
+  if (abs(joyX - 512) < 80)
   {
-    movX++;
+    movX = 0;
+  }
+  if (abs(joyY - 512) < 80)
+  {
+    movY = 0;
+  }
+
+  // Direccion hacia donde mira el personaje
+  if (movX > 0)
+  {
     jugador.direccionMirada = -1;
   }
-  if (izquierda) 
+  if (movX < 0)
   {
-    movX--;
     jugador.direccionMirada = 1;
   }
-
-  movY = 0;
-  if (abajo) movY++;
-  if (arriba) movY--;
 }
 
-// ------ MOVER AL JUGADOR (con mecánica de dash) ------
-void moverJugador() 
+// ------ MOVER AL JUGADOR CON DASH ------
+void moverJugador()
 {
-  if (dash && tiempo - tiempoanterior >= esperaDash) // con delay de 1 segundo
+  if (dash && !dashAnterior && tiempo - tiempoanterior >= esperaDash)
   {
-    // guarda la posicion y direccion de cuando se hizo
+    // Guarda la posicion y direccion
     anteriorX = jugador.x;
     anteriorY = jugador.y;
     anteriorDireccion = jugador.direccionMirada;
 
-    jugador.mover(movX * 15, movY * 15); // ejecuta el dash (hace que se mueva muy rapido)
-
-    transparencia = 150; // inicial 
-    tiempoanterior = tiempo; // nuevo tiempo para comparar
-  } 
-  else 
+    // Ejecuta el dash
+    jugador.mover(movX * 15, movY * 15);
+    transparencia = 150;
+    tiempoanterior = tiempo;
+  }
+  else
   {
     jugador.mover(movX, movY);
   }
+  dashAnterior = dash;
 }
 
 // ----- DIBUJAR ESTELA DEL DASH -----
@@ -618,12 +656,15 @@ boolean colisionFranja(float px, float py, float angulo, float ancho)
   return distancia < alcance;
 }
 
-// -------- PERDER VIDA -----------
-void reducirVida() 
+// -------- PERDER VIDA Y AVISAR A ARDUINO --------
+void reducirVida()
 {
-  if (millis() > invulnerableHasta) 
+  if (millis() > invulnerableHasta)
   {
     jugador.vida = jugador.vida - 1;
+    
+    // Avisar a Arduino que se perdio una vida
+    puerto.write("L\n");
     invulnerableHasta = millis() + tiempoRecuperacion;
   }
 }
@@ -872,44 +913,66 @@ void dibujarBarraDash()
   }
 }
 
-// ================= TECLADO =================
-// -------- KEY PRESSED ----------
-void keyPressed() 
+// ============== RECIBIR DATOS DE ARDUINO ==============
+void serialEvent(Serial p)
 {
-  if (enIntro) // solo se puede saltear con el skip
+  String mensaje = p.readStringUntil('\n');
+
+  if (mensaje != null)
   {
-    if (key == ' ' && !saliendo)
+    mensaje = trim(mensaje);
+    String[] datos = split(mensaje, ',');
+    if (datos.length == 4)
     {
-      saliendo = true;          // empieza la salida
-      inicioSalida = millis();  // reinicia el cronómetro del fundido
+      joyX = int(datos[0]);
+      joyY = int(datos[1]);
+      dash = (int(datos[2]) == 1);
+      botonSeleccion = (int(datos[3]) == 1);
     }
-    return;                     // el resto de las teclas se ignoran
   }
-
-  // EN EL MENÚ SE USAN FLECHAS DE LOS COSTADOS PARA SELECCIONAR Y <ENTER> PARA EMPEZAR
-  if (enMenu) 
-  {
-    if (keyCode == RIGHT) moverSeleccion(1);
-    if (keyCode == LEFT) moverSeleccion(-1);
-    if (key == ENTER) comenzarJuego();
-    return;
-  }
-
-  // MOVIMIENTO DEL GATO EN EL JUEGO
-  if (keyCode == RIGHT) derecha = true;
-  if (keyCode == LEFT) izquierda = true;
-  if (keyCode == UP) arriba = true;
-  if (keyCode == DOWN) abajo = true;
-  if (key == ' ') dash = true;
 }
 
-// DETECTA CUANDO SE DEJA DE APRETAR UNA TECLA
-void keyReleased() 
+// ============ BOTON DE SELECCION ============
+
+void actualizarBotonSeleccion()
 {
-  if (enIntro || enMenu) return;
-  if (keyCode == RIGHT) derecha = false;
-  if (keyCode == LEFT) izquierda = false;
-  if (keyCode == UP) arriba = false;
-  if (keyCode == DOWN) abajo = false;
-  if (key == ' ') dash = false;
+  if (botonSeleccion && !seleccionAnterior)
+  {
+    if (enIntro && !saliendo)
+    {
+      saliendo = true;
+      inicioSalida = millis();
+    }
+    else if (enMenu)
+    {
+      comenzarJuego();
+    }
+  }
+
+  seleccionAnterior = botonSeleccion;
+}
+
+
+// ============ MOVIMIENTO EN EL MENU ============
+
+void actualizarMenuJoystick()
+{
+  int direccion = 0;
+
+  if (joyX < 300)
+  {
+    direccion = -1;
+  }
+  else if (joyX > 700)
+  {
+    direccion = 1;
+  }
+
+  // Solo cambia una vez hasta que el joystick vuelva al centro
+  if (direccion != 0 && estadoMenuJoystick == 0)
+  {
+    moverSeleccion(direccion);
+  }
+
+  estadoMenuJoystick = direccion;
 }
