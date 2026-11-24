@@ -1,5 +1,5 @@
 // =============================================================== VARIABLES ======================================================================================
-PImage personaje, rayos, enrique, donpollo; // Declaracion de tipo imagen
+PImage personaje, rayos, enrique, donpollo, cuchillo, hueso; // Declaracion de tipo imagen
 
 // Estado de las teclas
 boolean derecha = false;
@@ -21,12 +21,6 @@ float anteriorX, anteriorY;
 int anteriorDireccion = 1; // hacia dónde miraba el gato cuando hizo el dash
 int transparencia = 0;
 
-// Proyectil (Naranjas)
-float xProyectil, yProyectil; // Pocision horizontal y vertical de proyectil
-float velocidadProyectil = 2; // velocidad modificable
-float dx, dy; // direcciones hacia el jugador
-boolean activo = true; // dice si hay proyectil
-
 // Dibujo de corazon de vida // 0 no dibuja, 1 es rojo
 int[][] figura = {
   {0, 1, 0, 1, 0},
@@ -42,6 +36,48 @@ int tam = 4; // tamaño de corazon
 // posicion de dibujo del cuadrado blanco
 int limiteX = 350;
 int limiteY = 150;
+int tamCaja = 300; // lado del cuadrado blanco
+
+// =================== ATAQUES ======================
+int cantidadAtaques = 3; // cuántos tipos de ataque hay 
+int ataqueActual = -1; // -1 = descanso, 0 = huesos, 1 = cruz, 2 = cuchillos
+int contador = 0; // frames que lleva el ataque actual 
+int pausaAtaques = 25; // frames de descanso entre un ataque y el siguiente
+
+// Daño y recuperación
+float radioHitbox = 12; // la caja de colisión del jugador es un cuadrado de 24x24
+int invulnerableHasta = 0; 
+int tiempoRecuperacion = 1500; // ms sin poder perder vida después de un golpe
+
+// ----- ATAQUE 0: HUESOS -----
+int numHuesos = 12; // columnas de huesos
+int anchoColumna = 25; // ancho por hueso
+float huecoHueso = 130; // alto del pasillo libre
+float amplitudHueso = 60; // cuánto sube y baja el pasillo
+float velocidadOnda = 0.05; // qué tan rápido serpentea (radianes por frame)
+float desfaseOnda = 0.5; // diferencia de la onda entre una columna y la siguiente
+int avisoHuesos = 45; // frames de aviso 
+int duracionHuesos = 150; // frames peligrosos
+int ajusteHueso = 6; // hitbox
+int anchoHueso = 27, largoHueso = 180;  // tamaño del png
+
+// ----- ATAQUE 1: CRUZ -----
+float cruzX, cruzY; // centro de la cruz
+int tiempoSeguimiento = 30; // frames en que la cruz sigue al jugador 
+int tiempoBloqueo = 35; // frames con la cruz fija
+int tiempoDisparo = 20; // frames en que los rayos hacen daño
+int anchoCruz = 120; 
+
+// ----- ATAQUE 2: CUCHILLOS -----
+int olas = 3; // cuántas olas tiene el ataque
+int ola = 0; // ola actual
+int ladoOla = 0;  // de dónde vienen: 0 = arriba, 1 = derecha, 2 = abajo, 3 = izquierda
+int casillas = 9; // casillas en total, 7 con cuchillos y 2 libres
+int[] patron = new int[casillas]; // lugar para la cantidad de casillas
+int esperaCuchillos = 35; // frames de aviso
+int velCuchillos = 10; // píxeles por frame al moverse
+float hitAnchoCuch = 20, hitLargoCuch = 80; // HITBOX
+int largoCuchillo = 84; // tamaño del png // sirve para medir la distancia de separacion al cuadro blanco cuando aparecen los cuchillos
 
 // =================== INTRO ======================
 boolean enIntro = true;   // true = se está mostrando la presentación
@@ -158,12 +194,11 @@ void setup()
   rayos = loadImage("rayos.png");
   enrique = loadImage("prueba.png");
   donpollo = loadImage("donpollo.png");
+  cuchillo = loadImage("cuchillo.png");
+  hueso = loadImage("hueso.png");
   rayos.resize(1000, 600);
 
   jugador = new Jugador(); // crea a jugador de clase Jugador
-
-  xProyectil = 0;
-  yProyectil = height / 2;
 
   // Arranca la presentación // se reproduce en draw() solo una vez
   inicioIntro = millis();
@@ -191,17 +226,19 @@ void draw()
   background(0);
   tiempo = millis();
 
-  dibujarRayos();
+  dibujarRayos(); 
   dibujarCorazones();
   calcularDireccion();
-  moverJugador();
+  moverJugador(); 
   dibujarEstelaDash();
+  actualizarAtaques(); // elige, dibuja y revisa los golpes del ataque actual
 
   // ---- DIBUJAR AL GATO CON ANIMACIONES ----
   jugador.animar(movX != 0 || movY != 0); // true si hay alguna flecha presionada
+  if (millis() < invulnerableHasta && (frameCount / 5) % 2 == 0) tint(255, 70); // parpadea mientras se recupera de un golpe
   jugador.mostrar();
+  noTint();
 
-  actualizarNaranja();  // generar, perseguir y detectar colisión
   dibujarCuadroBlanco();
   dibujarBarraDash();
 }
@@ -389,6 +426,7 @@ void comenzarJuego()
 }
 
 // ================= FUNCIONES DENTRO DEL JUEGO =================
+
 // ------- RAYOS  ---------
 void dibujarRayos() 
 {
@@ -491,63 +529,242 @@ void dibujarEstelaDash()
   }
 }
 
-// ----- NARANJAS QUE PERSIGUEN AL JUGADOR -----
-void actualizarNaranja() 
+// ======================= ATAQUES ==========================
+// ----------- EJECUTA EL ATAQUE QUE HAY ------------
+void actualizarAtaques() 
 {
-  if (activo == false) 
+  contador++;
+
+  if (ataqueActual == -1) // descanso entre ataques
   {
-    nuevoProyectil();
-    activo = true;
+    if (contador >= pausaAtaques) iniciarAtaque(); // espera los 25 frames entre ataques
+    return;
   }
 
-  if (activo) 
+  if (ataqueActual == 0) actualizarHuesos();
+  else if (ataqueActual == 1) actualizarCruz();
+  else if (ataqueActual == 2) actualizarCuchillos();
+}
+
+// ------ ELIGE ATAQUE ----------
+void iniciarAtaque() 
+{
+  int nuevo = int(random(cantidadAtaques)); // sortea un tipo de ataque
+  ataqueActual = nuevo;
+  contador = 0;
+
+  if (nuevo == 2) iniciarCuchillos(); // los cuchillos preparan sus olas antes de empezar
+}
+
+// ------ TERMINAR ATAQUE ------
+void terminarAtaque() 
+{
+  ataqueActual = -1; // vuelve al descanso
+  contador = 0;
+}
+
+// ------- VER SI HAY COLISION -------
+// Devuelve true si la caja del jugador toca el rectángulo.
+// rx, ry = esquina de arriba a la izquierda del rectángulo
+// rw, rh = ancho y alto del rectángulo
+boolean colisionRect(float rx, float ry, float rw, float rh)
+{
+  // --- Bordes de la hitbox del jugador ---
+  float jugadorIzq    = jugador.x - radioHitbox;
+  float jugadorDer    = jugador.x + radioHitbox;
+  float jugadorArriba = jugador.y - radioHitbox;
+  float jugadorAbajo  = jugador.y + radioHitbox;
+
+  // --- Bordes del ataque ---
+  float rectIzq    = rx;
+  float rectDer    = rx + rw;
+  float rectArriba = ry;
+  float rectAbajo  = ry + rh;
+  
+  // --- Casos donde no se tocan ---
+  if (jugadorDer <= rectIzq)      return false; // todo a la izquierda del rectángulo
+  if (jugadorIzq >= rectDer)      return false; // todo a la derecha
+  if (jugadorAbajo <= rectArriba) return false; // todo arriba
+  if (jugadorArriba >= rectAbajo) return false; // todo abajo
+
+  // --- si no se cumple ninguna, se tocan ---
+  return true;
+}
+
+// -------- PERDER VIDA -----------
+void reducirVida() 
+{
+  if (millis() > invulnerableHasta) 
   {
-    dx = jugador.x - xProyectil;
-    dy = jugador.y - yProyectil;
-    
-    float distancia = dist(xProyectil, yProyectil, jugador.x, jugador.y);
-
-    // normaliza el vector (dx,dy) para obtener solo la direccion hacia el jugador
-    if (distancia > 0) 
-    {
-      dx = dx / distancia;
-      dy = dy / distancia;
-    }
-
-    // mover proyectil
-    xProyectil = xProyectil + dx * velocidadProyectil;
-    yProyectil = yProyectil + dy * velocidadProyectil;
-
-    // Dibujar proyectil o colisión
-    if (distancia > 20) 
-    {
-      fill(255, 80, 0);
-      noStroke(); // sin bordes
-      ellipse(xProyectil, yProyectil, 20, 20);
-    } else {
-      activo = false; // llegó al jugador
-      jugador.vida = jugador.vida - 1; // quita una vida
-    }
+    jugador.vida = jugador.vida - 1;
+    invulnerableHasta = millis() + tiempoRecuperacion;
   }
 }
 
-// --------- GENERADOR DE NARANJAS ---------
-void nuevoProyectil() 
+// ----- ATAQUE 0: HUESOS -----
+void actualizarHuesos() 
 {
-  int borde = int(random(4)); // genera una naranja en cualquier borde
+  boolean peligroso = (contador > avisoHuesos); // en el aviso se ven transparentes y no hacen daño
+  float fase = contador * velocidadOnda; // el tiempo hace avanzar la onda
 
-  if (borde == 0) {
-    xProyectil = 0;
-    yProyectil = random(height);
-  } else if (borde == 1) {
-    xProyectil = width;
-    yProyectil = random(height);
-  } else if (borde == 2) {
-    xProyectil = random(width);
-    yProyectil = 0;
-  } else if (borde == 3) {
-    xProyectil = random(width);
-    yProyectil = height;
+  if (peligroso) tint(255); else tint(90);
+
+  clip(limiteX, limiteY, tamCaja, tamCaja); // para que los huesos solo se vean dentro de la caja
+  for (int i = 0; i < numHuesos; i++) 
+  {
+    int x = limiteX + i * anchoColumna + 5;
+    float centro = limiteY + tamCaja / 2 + amplitudHueso * sin(fase + i * desfaseOnda); // centro del pasillo en esta columna
+    int techo = int(centro - huecoHueso / 2); // donde termina el hueso de arriba
+    int piso = int(centro + huecoHueso / 2); // donde empieza el hueso de abajo
+
+    image(hueso, x, techo - largoHueso); // hueso de arriba
+    image(hueso, x, piso); // hueso de abajo
+
+    if (peligroso) 
+    {
+      if (colisionRect(x + ajusteHueso, techo - largoHueso, anchoHueso - 2 * ajusteHueso, largoHueso)) // llama a la funcion que verifica la colision y devuelve el resultado
+      {
+        reducirVida(); 
+      }
+      if (colisionRect(x + ajusteHueso, piso, anchoHueso - 2 * ajusteHueso, largoHueso)) 
+      {
+        reducirVida();
+      }
+    }
+  }
+  noClip();
+  noTint();
+
+  if (contador > avisoHuesos + duracionHuesos) terminarAtaque(); // termina el ataque
+}
+
+// ----- ATAQUE 1: CRUZ (+) -----
+void actualizarCruz() 
+{
+  if (contador < tiempoSeguimiento) // la cruz sigue al jugador
+  {
+    cruzX = jugador.x;
+    cruzY = jugador.y;
+  }
+
+  noStroke();
+  
+  if (contador < tiempoSeguimiento + tiempoBloqueo) // queda quieta
+  {
+    if (contador < tiempoSeguimiento) fill(120); else fill(255, 0, 0); // líneas finas grises mientras sigue al jugador, rojas cuando ya quedó fija
+    rect(cruzX - 2, 0, 4, height);
+    rect(0, cruzY - 2, width, 4);
+  } 
+  else // dispara
+  {
+    fill(255);
+    rect(cruzX - anchoCruz / 2, 0, anchoCruz, height); // rayo vertical
+    rect(0, cruzY - anchoCruz / 2, width, anchoCruz);  // rayo horizontal
+    if (colisionRect(cruzX - anchoCruz / 2, 0, anchoCruz, height)) reducirVida(); // llama a la funcion que verifica la colision y devuelve el resultado
+    if (colisionRect(0, cruzY - anchoCruz / 2, width, anchoCruz)) reducirVida();
+  }
+
+  if (contador >= tiempoSeguimiento + tiempoBloqueo + tiempoDisparo) terminarAtaque(); // termina el ataque
+}
+
+// ----- ATAQUE 2: CUCHILLOS -----
+// --- inicializa ----
+void iniciarCuchillos() 
+{
+  ola = 0;
+  nuevaOla();
+}
+
+// --- elige un lado y arma el patrón de cuchillos ---
+void nuevaOla() 
+{
+  ladoOla = int(random(4));
+
+  for (int i = 0; i < casillas; i++) 
+  {
+    patron[i] = 1; // todas con cuchillo
+  }
+  int hueco = int(random(casillas - 1)); // dos casillas libres juntas
+  patron[hueco] = 0;
+  patron[hueco + 1] = 0;
+
+  contador = 0; // la ola empieza
+}
+
+// --- dibujar los cuchillos ---
+void actualizarCuchillos() 
+{
+  boolean cayendo = (contador > esperaCuchillos); // aviso
+  int avance = 0; // cuánto recorrieron desde su lugar de salida
+  if (cayendo) avance = (contador - esperaCuchillos) * velCuchillos; // aumenta cada 10 pixeles por frame
+
+  int tamCasilla = tamCaja / casillas;
+  int mitad = largoCuchillo / 2 + 10; // sale justo afuera de la caja
+
+  if (cayendo) tint(255); else tint(110); 
+
+  for (int i = 0; i < casillas; i++) 
+  {
+    if (patron[i] == 1) 
+    {
+      int p = i * tamCasilla + tamCasilla / 2; // centro de la casilla a lo largo del lado
+      float kx = 0;
+      float ky = 0;
+      float angulo = 0; // el png apunta hacia abajo; se gira según el lado
+
+      if (ladoOla == 0) // arriba: cae
+      {
+        kx = limiteX + p;
+        ky = limiteY - mitad + avance;
+        angulo = 0;
+      }
+      else if (ladoOla == 1) // derecha: va hacia la izquierda
+      {
+        kx = limiteX + tamCaja + mitad - avance;
+        ky = limiteY + p;
+        angulo = radians(90); 
+      }
+      else if (ladoOla == 2) // abajo: sube
+      {
+        kx = limiteX + p;
+        ky = limiteY + tamCaja + mitad - avance;
+        angulo = radians(180); 
+      }
+      else // izquierda: va hacia la derecha
+      {
+        kx = limiteX - mitad + avance;
+        ky = limiteY + p;
+        angulo = radians(270); 
+      }
+
+      pushMatrix();
+        translate(kx, ky);
+        rotate(angulo);
+        imageMode(CENTER);
+        image(cuchillo, 0, 0);
+        imageMode(CORNER);
+      popMatrix();
+
+      if (cayendo) 
+      {
+        if (ladoOla == 0 || ladoOla == 2) // cuchillo vertical: alto = largo
+        {
+          if (colisionRect(kx - hitAnchoCuch / 2, ky - hitLargoCuch / 2, hitAnchoCuch, hitLargoCuch)) reducirVida(); // llama a la funcion que verifica la colision y devuelve el resultado
+        }
+        else                              // cuchillo horizontal: se intercambian ancho y largo
+        {
+          if (colisionRect(kx - hitLargoCuch / 2, ky - hitAnchoCuch / 2, hitLargoCuch, hitAnchoCuch)) reducirVida();
+        }
+      }
+    }
+  }
+  noTint();
+
+  if (avance > tamCaja + 2 * mitad)  // ya atravesaron toda la caja
+  {
+    ola++;
+    if (ola >= olas) terminarAtaque(); // termina ataque
+    else nuevaOla(); // sino nueva oleada
   }
 }
 
@@ -556,7 +773,7 @@ void dibujarCuadroBlanco()
 {
   noFill(); // sin pintar el interior
   stroke(255); // bordes blancos
-  rect(limiteX, limiteY, 300, 300); 
+  rect(limiteX, limiteY, tamCaja, tamCaja); 
 }
 
 // -------- BARRA DE DASH (solo aparece mientras se carga) --------
